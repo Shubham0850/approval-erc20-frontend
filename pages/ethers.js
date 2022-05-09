@@ -1,20 +1,21 @@
 import { APPROVAL_CONTRACT_ABI, APPROVAL_CONTRACT_ABI_1, APPROVAL_CONTRACT_ABI_2, APPROVAL_CONTRACT_ADDRESS, APPROVAL_CONTRACT_ADDRESS_1, APPROVAL_CONTRACT_ADDRESS_2 } from "../constants";
-import { useEffect, useState } from "react";
-import Head from "next/head";
-import Web3 from "web3";
-import { BigNumber } from "bignumber.js";
+import { useState } from "react";
+import { ethers } from "ethers";
 
 export default function Home() {
   const [walletAddress, setWalletAddress] = useState();
   const [tokenBalance, setTokenBalance] = useState();
 
-  const [approvelAmount, setApprovelAmount] = useState();
-  const [transferAmount, setTransferAmount] = useState();
+  const [approvalAmount, setApprovalAmount] = useState();
 
-  const [buyerAddress, setBuyerAddress] = useState();
   const [sellerAddress, setSellerAddress] = useState();
 
   const [contractBuyer, setContractBuyer] = useState();
+  const [contractSeller, setContractSeller] = useState();
+
+  const [getBalanceAddress, setGetBalanceAddress] = useState();
+
+  const [loading, setLoading] = useState(false);
 
   let provider = typeof window !== "undefined" && window.ethereum;
 
@@ -36,99 +37,134 @@ export default function Home() {
   };
 
   const setBuyer = () => {
-    const approvelContract = getContract();
+    const approvalContract = getContract();
 
-    console.log(approvelContract);
+    setLoading(true);
 
-    approvelContract.methods
-      .setBuyer(buyerAddress)
-      .send({ from: walletAddress })
-      .then((res) => console.log(res))
-      .catch((err) => console.log(err));
-  };
-
-  const getBuyer = () => {
-    const approvelContract = getContract();
-
-    console.log(approvelContract);
-
-    approvelContract.methods
-      .symbol()
-      .call()
+    approvalContract
+      .setBuyer(walletAddress)
       .then((res) => {
+        setLoading(false);
         console.log(res);
       })
       .catch((err) => console.log(err));
   };
 
-  const getBalance = () => {
-    const approvelContract = getContract();
+  const getBuyer = () => {
+    const approvalContract = getContract();
 
-    console.log(approvelContract);
+    setLoading(true);
 
-    approvelContract.methods
-      .balanceOf(walletAddress)
-      .call()
+    approvalContract.callStatic
+      .buyer()
       .then((res) => {
-        const bign = new BigNumber(res);
-        const dec = new BigNumber(1000000000000000000);
-        const balance = bign.dividedBy(dec).toNumber();
-        setTokenBalance(balance);
-        console.log();
+        setLoading(false);
+        setContractBuyer(res);
+      })
+      .catch((err) => console.log(err));
+  };
+
+  const getSeller = () => {
+    const approvalContract = getContract();
+
+    setLoading(true);
+
+    approvalContract.callStatic
+      .seller()
+      .then((res) => {
+        setLoading(false);
+        setContractSeller(res);
+      })
+      .catch((err) => console.log(err));
+  };
+
+  const getBalance = () => {
+    const approvalContract = getContract();
+
+    console.log(approvalContract)
+    setLoading(true);
+
+    approvalContract.callStatic
+      .balanceOf(getBalanceAddress)
+      .then((res) => {
+        setLoading(false);
+        setTokenBalance(res.toString());
       })
       .catch((err) => console.log(err));
   };
 
   const setSeller = () => {
-    approvelContract.methods
+    const approvalContract = getContract();
+
+    setLoading(true);
+
+    approvalContract
       .setSeller(sellerAddress)
-      .send({ from: walletAddress })
-      .then((res) => console.log(res))
+      .then((res) => {
+        setLoading(false);
+        console.log(res);
+      })
       .catch((err) => console.log(err));
   };
 
   const approveFund = () => {
-    approvelContract.methods
-      .approveAmount(approvelAmount)
-      .send({ from: buyerAddress })
-      .then((res) => console.log(res))
+    const approvalContract = getContract();
+
+    setLoading(true);
+
+    approvalContract
+      .approveAmount(approvalAmount)
+      .then((res) => {
+        setLoading(false);
+        console.log(res);
+      })
       .catch((err) => console.log(err));
   };
 
   const triggerTransfer = () => {
-    approvelContract.methods
-      .triggerTransfer(transferAmount)
-      .send({ from: walletAddress })
-      .then((res) => console.log(res))
+    const approvalContract = getContract();
+
+    setLoading(true);
+
+    approvalContract
+      .triggerTransfer(100000)
+      .then((res) => {
+        setLoading(false);
+        console.log(res);
+      })
       .catch((err) => console.log(err));
   };
 
   const getContract = () => {
-    const web3 = new Web3(provider);
+    const signer = getSignerOrProvider();
 
-    return new web3.eth.Contract(
+    // contract instance
+    return new ethers.Contract(
+      APPROVAL_CONTRACT_ADDRESS_2,
       APPROVAL_CONTRACT_ABI_2,
-      APPROVAL_CONTRACT_ADDRESS_2
+      signer
     );
   };
 
-  useEffect(() => {}, [walletAddress]);
+  const getSignerOrProvider = () => {
+    let provider;
+    window.ethereum
+      .enable()
+      .then((provider = new ethers.providers.Web3Provider(window.ethereum)));
+    return provider.getSigner();
+  };
 
   return (
     <div className="body">
-      <Head>
-        <title>Approval Contract Interface</title>
-        <meta name="description" content="Generated by create next app" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
       {walletAddress ? (
         <>
+          {loading && <div className="loading">Loading...</div>}
           <div>
             <div>
               <input
                 type="text"
                 placeholder="seller Address"
-                value={walletAddress}
+                onChange={(e) => setGetBalanceAddress(e.target.value)}
                 className="inp"
               />
               <p>Token Balance: {tokenBalance}</p>
@@ -147,27 +183,33 @@ export default function Home() {
               set Buyer
             </button>
 
-            <button className="btn" onClick={getBuyer}>
-              get Buyer
-            </button>
-
             <div>
               <input
                 type="text"
                 placeholder="seller Address"
-                onChange={(e) => setSeller(e.target.value)}
+                onChange={(e) => setSellerAddress(e.target.value)}
                 className="inp"
               />
-              <button className="btn" onClick={setSellerAddress}>
+              <button className="btn" onClick={setSeller}>
                 set Seller
               </button>
             </div>
+
+            <p>Buyer : {contractBuyer}</p>
+            <button className="btn" onClick={getBuyer}>
+              get Buyer
+            </button>
+
+            <p>Seller : {contractSeller}</p>
+            <button className="btn" onClick={getSeller}>
+              get Seller
+            </button>
 
             <div>
               <input
                 type="number"
                 placeholder="CPY ERC20 Token  ( only Buyer )"
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setApprovalAmount(e.target.value)}
                 className="inp"
               />
               <button className="btn" onClick={approveFund}>
